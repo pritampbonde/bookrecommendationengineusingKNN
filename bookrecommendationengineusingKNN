@@ -1,0 +1,40 @@
+import pandas as pd
+from sklearn.neighbors import NearestNeighbors
+from sklearn.preprocessing import StandardScaler
+
+# Load and clean the Book-Crossings dataset
+books_df = pd.read_csv('BX-Books.csv', sep=';', error_bad_lines=False, encoding='latin-1')
+ratings_df = pd.read_csv('BX-Book-Ratings.csv', sep=';', error_bad_lines=False, encoding='latin-1')
+
+# Merge datasets
+merged_df = pd.merge(ratings_df, books_df, on='ISBN')
+
+# Filter out books with fewer than 100 ratings and users with fewer than 200 ratings
+book_counts = merged_df['Book-Title'].value_counts()
+user_counts = merged_df['User-ID'].value_counts()
+merged_df = merged_df[merged_df['Book-Title'].isin(book_counts[book_counts >= 100].index)]
+merged_df = merged_df[merged_df['User-ID'].isin(user_counts[user_counts >= 200].index)]
+
+# Feature engineering and normalization
+features = ['Book-Rating']
+X = merged_df[features].values
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Train KNN model
+knn_model = NearestNeighbors(n_neighbors=6, algorithm='auto')
+knn_model.fit(X_scaled)
+
+# Function to get recommendations
+def get_recommends(book_title):
+    book_index = merged_df[merged_df['Book-Title'] == book_title].index[0]
+    distances, indices = knn_model.kneighbors([X_scaled[book_index]])
+    similar_books = []
+    for idx in indices[0][1:6]:  # Exclude the input book itself
+        similar_books.append([merged_df.iloc[idx]['Book-Title'], distances[0][idx]])
+    return [book_title, similar_books]
+
+# Example usage
+book_title = 'The Queen of the Damned (Vampire Chronicles (Paperback))'
+recommendations = get_recommends(book_title)
+print(recommendations)
